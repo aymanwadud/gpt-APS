@@ -18,7 +18,7 @@ from langchain.llms import OpenAI
 load_dotenv()
 
 def main():
-st.title("Physician Chamber Appointment System")
+    st.title("Physician Chamber Appointment System")
 
     # Initialize agents
 ingestion_agent = DataIngestionAgent()
