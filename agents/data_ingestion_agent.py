@@ -1,14 +1,18 @@
 import pdfplumber
 import pandas as pd
 from datetime import datetime
-from utils.database import Appointment, Session
+from langchain.vectorstores import Chroma
+from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain.schema import Document
 
 class DataIngestionAgent:
-    def __init__(self, data_dir="data/"):
-        self.data_dir = data_dir
+    def __init__(self, vector_db_dir="vector_db/"):
+        self.vector_db_dir = vector_db_dir
+        self.embeddings = OpenAIEmbeddings()
+        self.vectorstore = Chroma(persist_directory=vector_db_dir, embedding_function=self.embeddings)
 
     def _extract_date_from_pdf(self, pdf_path):
-        """Extracts appointment date from the pdf"""
+        """Extracts appointment date from the PDF."""
         with pdfplumber.open(pdf_path) as pdf:
             first_page = pdf.pages[0]
             text = first_page.extract_text()
@@ -19,76 +23,28 @@ class DataIngestionAgent:
                     return datetime.strptime(f"{date_part} {year}", "%d %B %Y").date()
         return None
 
-
     def _extract_appointments_from_pdf(self, pdf_path):
-        """Extracts appointment data from a PDF."""
+        """Parses appointment data from PDF."""
         appointments = []
         date = self._extract_date_from_pdf(pdf_path)
         with pdfplumber.open(pdf_path) as pdf:
-            for i, page in enumerate(pdf.pages):
+            for page in pdf.pages:
                 table = page.extract_table()
                 if table:
                     df = pd.DataFrame(table[1:], columns=table[0])
-                    for index, row in df.iterrows():
+                    for _, row in df.iterrows():
                         sl = row.get('SL', None)
                         if not sl or not str(sl).isdigit():
-                           print(f"Error skipping row with invalid SL {sl}, row: {row}")
-                           continue
-                        try:
-                            sl = int(sl)
-                            appointment_time_str = f"{date.strftime('%Y-%m-%d')} 00:00"
-                            appointment_time = datetime.strptime(appointment_time_str, "%Y-%m-%d %H:%M")
-
-                            age = row.get("Age", None)
-                            if age:
-                              try:
-                                  age = int(age)
-                              except:
-                                  age = None
-                            else:
-                                age = None
-
-                            if row.get("Patient Name", None) and row.get("Phone", None):
-                                 appointments.append({
-                                     "patient_name": row["Patient Name"],
-                                     "age": age,
-                                     "sex": row.get("Sex", None),
-                                     "phone": row["Phone"],
-                                     "type": row.get("Type", None),
-                                     "category": row.get("Category", None),
-                                     "appointment_time": appointment_time,
-                                     "check_in_time": None,
-                                     "priority_score": 0,
-                                     "sl": sl
-                                 })
-                        except Exception as e:
-                            print(f"Error extracting appointment: {e}, row: {row}")
+                            continue
+                        appointments.append({
+                            "content": f"Patient {row['Patient Name']}, Age {row['Age']}, Type {row['Type']}, Category {row['Category']}, SL {row['SL']}",
+                            "metadata": {"name": row['Patient Name'], "age": row['Age'], "type": row['Type'], "category": row['Category'], "sl": int(sl)}
+                        })
         return appointments
 
     def ingest_data(self, pdf_path):
-        """Loads appointments from the pdf to the database"""
+        """Ingests data into ChromaDB."""
         appointments = self._extract_appointments_from_pdf(pdf_path)
-        session = Session()
-        try:
-            for appt_data in appointments:
-                 appointment = Appointment(
-                    patient_name = appt_data.get("patient_name"),
-                    age = appt_data.get("age"),
-                    sex = appt_data.get("sex"),
-                    phone = appt_data.get("phone"),
-                    appointment_time = appt_data.get("appointment_time"),
-                    type = appt_data.get("type"),
-                    category = appt_data.get("category"),
-                    check_in_time = appt_data.get("check_in_time"),
-                    is_checked_in = False,
-                    priority_score = appt_data.get("priority_score"),
-                    is_completed = False,
-                    sl = appt_data.get("sl")
-                 )
-                 session.add(appointment)
-            session.commit()
-        except Exception as e:
-            session.rollback()
-            print(f"Error inserting data: {e}")
-        finally:
-            session.close()
+        documents = [Document(page_content=appt["content"], metadata=appt["metadata"]) for appt in appointments]
+        self.vectorstore.add_documents(documents)
+        print(f"Successfully stored {len(documents)} appointments into the vector database.")
