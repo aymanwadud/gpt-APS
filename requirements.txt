@@ -1,9 +1,5 @@
+langchain
+chromadb
+openai
 pdfplumber
-pandas
-SQLAlchemy
-python-dotenv
-psycopg2-binary
 streamlit
-altair
-streamlit-aggrid
-vega
