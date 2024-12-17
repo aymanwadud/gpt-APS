@@ -6,7 +6,7 @@ from agents.priority_queue_management_agent import PriorityQueueManagementAgent
 from agents.real_time_monitoring_agent import RealTimeMonitoringAgent
 from utils.database import Appointment, Session
 import pandas as pd
-from st_aggrid import AgGrid, GridOptionsBuilder, JsCode, GridUpdateMode
+from st_aggrid import AgGrid, GridOptionsBuilder, JsCode
 from datetime import datetime
 from dotenv import load_dotenv
 import os
@@ -28,6 +28,8 @@ def main():
     if "queue" not in st.session_state:
         st.session_state.queue = []
 
+
+
     # Function to load data from PDF
     def load_appointments():
         uploaded_file = st.file_uploader("Upload your PDF here", type=["pdf"])
@@ -37,20 +39,20 @@ def main():
                    f.write(uploaded_file.read())
                 ingestion_agent.ingest_data('temp.pdf')
                 st.success("Appointments loaded successfully!")
-                st.session_state.queue = queue_agent.get_prioritized_queue() # Load the queue after upload.
-                st.experimental_rerun() # Re render the component after loading the data.
+                st.session_state.queue = queue_agent.get_prioritized_queue()
+                st.experimental_rerun()
             except Exception as e:
                  st.error(f"Error loading appointments: {e}")
 
-    # Load the queue from database if it exists in session state.
-    if st.session_state.queue:
-        st.session_state.queue = queue_agent.get_prioritized_queue()
+
+
 
     # load appointments from pdf if the queue is empty.
     if not st.session_state.queue:
         load_appointments()
 
 
+    # Load the queue from database if it exists in session state.
     if st.session_state.queue:
           # Convert queue to dataframe
           df = pd.DataFrame([{"id": appt.id,
@@ -114,8 +116,8 @@ def main():
                                         return '<button onclick="checkIn(this)" id="'+params.data.id+'">Check In</button>'
                                 }
                               """),
-                              width = 100
-                            )
+                              width = 100,
+                              )
 
           gb.configure_column("done_button",
                               cellRenderer=JsCode("""
@@ -123,7 +125,7 @@ def main():
                                        return '<button onclick="done(this)" id="'+params.data.id+'">Done</button>'
                                 }
                               """),
-                              width = 100
+                              width = 100,
                             )
           go = gb.build()
           go["allow_unsafe_jscode"] = True
@@ -205,10 +207,10 @@ def main():
                             appt = session.query(Appointment).filter(Appointment.id == row['id']).first()
                             if appt:
                                 appt.sl = row['sl']
-                        session.commit()
-                        st.session_state.queue = queue_agent.get_prioritized_queue()
-                        st.session_state["agGrid_key"] = None # Remove key from session state
-                        st.experimental_rerun()
+                            session.commit()
+                            st.session_state.queue = queue_agent.get_prioritized_queue()
+                            st.session_state["agGrid_key"] = None # Remove key from session state
+                            st.experimental_rerun()
                 finally:
                    session.close()
 
