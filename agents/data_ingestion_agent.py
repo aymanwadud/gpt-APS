@@ -16,16 +16,16 @@ class DataIngestionAgent:
         self.vector_db = Chroma(persist_directory=os.path.join(data_dir, "chroma_db"), embedding_function=self.embeddings)
 
     def _extract_date_from_pdf(self, pdf_path):
-    """Extracts appointment date from the pdf"""
-    with pdfplumber.open(pdf_path) as pdf:
-        first_page = pdf.pages[0]
-        text = first_page.extract_text()
-        for line in text.split("\n"):
-            if line.lower().startswith("appointment date:"):
-                date_part = line.split(":", 1)[1].strip().split(",")[0].strip()
-                year = datetime.now().year
-                return datetime.strptime(f"{date_part} {year}", "%d %B %Y").date()
-    return None
+        """Extracts appointment date from the pdf"""
+        with pdfplumber.open(pdf_path) as pdf:
+            first_page = pdf.pages[0]
+            text = first_page.extract_text()
+            for line in text.split("\n"):
+                if line.lower().startswith("appointment date:"):
+                    date_part = line.split(":", 1)[1].strip().split(",")[0].strip()
+                    year = datetime.now().year
+                    return datetime.strptime(f"{date_part} {year}", "%d %B %Y").date()
+        return None
 
 
     def _extract_appointments_from_pdf(self, pdf_path):
