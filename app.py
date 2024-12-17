@@ -28,6 +28,17 @@ def main():
     if "queue" not in st.session_state:
         st.session_state.queue = []
 
+    def clear_database():
+        """Clears all data from the database."""
+        session = Session()
+        try:
+            session.query(Appointment).delete()
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            print(f"Error clearing database: {e}")
+        finally:
+            session.close()
 
 
     # Function to load data from PDF
@@ -37,6 +48,7 @@ def main():
             try:
                 with open("temp.pdf", "wb") as f:
                    f.write(uploaded_file.read())
+                clear_database()
                 ingestion_agent.ingest_data('temp.pdf')
                 st.success("Appointments loaded successfully!")
                 st.session_state.queue = queue_agent.get_prioritized_queue()
