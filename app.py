@@ -4,7 +4,7 @@ from agents.feature_extraction_agent import FeatureExtractionAgent
 from agents.priority_calculation_agent import PriorityCalculationAgent
 from agents.priority_queue_management_agent import PriorityQueueManagementAgent
 from agents.real_time_monitoring_agent import RealTimeMonitoringAgent
-from utils.database import Appointment, Session
+from utils.database import Appointment, Session, Base, engine
 import pandas as pd
 from st_aggrid import AgGrid, GridOptionsBuilder, JsCode
 from datetime import datetime
@@ -28,6 +28,17 @@ def main():
     if "queue" not in st.session_state:
         st.session_state.queue = []
 
+    def clear_database():
+        """Clears all data from the database."""
+        session = Session()
+        try:
+            session.query(Appointment).delete()
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            print(f"Error clearing database: {e}")
+        finally:
+            session.close()
 
 
     # Function to load data from PDF
@@ -37,6 +48,7 @@ def main():
             try:
                 with open("temp.pdf", "wb") as f:
                    f.write(uploaded_file.read())
+                clear_database()
                 ingestion_agent.ingest_data('temp.pdf')
                 st.success("Appointments loaded successfully!")
                 st.session_state.queue = queue_agent.get_prioritized_queue()
@@ -191,17 +203,15 @@ def main():
 
                                   )
 
-          # Handle row selection and button actions
-          selected_rows = grid_response["selected_rows"]
-          if selected_rows:
-              for row in selected_rows:
-                  patient_id = row["id"]
-                  st.info(f"Processing Patient ID: {patient_id}")
-        
-                  # Check-in and mark the appointment as done
-                  check_in_patient(patient_id)
-                  mark_appointment_done(patient_id)
-
+          # Handle button press event
+          if grid_response.get('data') is not None and not grid_response.get('data').empty:
+           selected_value = st.session_state.get("agGrid_key", None)
+           if selected_value:
+              if str(selected_value).endswith("_done"):
+                mark_appointment_done(int(selected_value.replace("_done", "")))
+              else:
+                check_in_patient(int(selected_value))
+              st.session_state["agGrid_key"] = None # Remove key from session state
           if grid_response.get('data_rows'):
             selected_rows = grid_response.get('data_rows', [])
             if selected_rows:
