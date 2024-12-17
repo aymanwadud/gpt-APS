@@ -40,7 +40,7 @@ def main():
                 ingestion_agent.ingest_data('temp.pdf')
                 st.success("Appointments loaded successfully!")
                 st.session_state.queue = queue_agent.get_prioritized_queue()
-                st.experimental_rerun()
+                st.rerun()
             except Exception as e:
                  st.error(f"Error loading appointments: {e}")
 
@@ -68,7 +68,7 @@ def main():
                monitoring_agent.check_in(patient_id)
                priority_calc_agent.update_priority_in_db(patient_id)
                st.session_state.queue = queue_agent.get_prioritized_queue()
-               st.experimental_rerun()
+               st.rerun()
 
 
           def mark_appointment_done(patient_id):
@@ -79,7 +79,7 @@ def main():
                         appointment.is_completed = True
                         session.commit()
                         st.session_state.queue = queue_agent.get_prioritized_queue()
-                        st.experimental_rerun()
+                        st.rerun()
                 except Exception as e:
                     session.rollback()
                     print(f"Error marking the appointment complete {e}")
@@ -210,7 +210,7 @@ def main():
                             session.commit()
                             st.session_state.queue = queue_agent.get_prioritized_queue()
                             st.session_state["agGrid_key"] = None # Remove key from session state
-                            st.experimental_rerun()
+                            st.rerun()
                 finally:
                    session.close()
 
