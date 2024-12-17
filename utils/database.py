@@ -1,12 +1,13 @@
+# utils/database.py
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Float
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Sequence
-from utils.config import DATABASE_URL
+# Removed the DATABASE_URL import since we are not using postgres
+Base = declarative_base()
 
-Base = declarative_base() # Define Base here
 
-class Appointment(Base): # Use Base here
+class Appointment(Base):
     __tablename__ = 'appointments'
     id = Column(Integer, Sequence('appointment_id_seq'), primary_key=True)
     patient_name = Column(String)
@@ -22,6 +23,8 @@ class Appointment(Base): # Use Base here
     is_completed = Column(Boolean, default = False)
     sl = Column(Integer, nullable = False)
 
-engine = create_engine(DATABASE_URL)
-Base.metadata.create_all(engine)
-Session = sessionmaker(bind=engine)
+
+# Removed the usage of the engine and session here
+# engine = create_engine(DATABASE_URL)
+# Base.metadata.create_all(engine)
+# Session = sessionmaker(bind=engine)
