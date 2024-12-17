@@ -1,47 +1,94 @@
-# agents/data_ingestion_agent.py
-
-import json
+import pdfplumber
+import pandas as pd
 from datetime import datetime
+from utils.database import Appointment, Session
 
 class DataIngestionAgent:
     def __init__(self, data_dir="data/"):
         self.data_dir = data_dir
 
-    def load_data_from_json(self, filename):
-        """Load data from a JSON file"""
-        try:
-            with open(filename, "r") as f:
-                data = json.load(f)
-                return data
-        except Exception as e:
-            print(f"Error loading data from {filename}: {e}")
-            return []
+    def _extract_date_from_pdf(self, pdf_path):
+        """Extracts appointment date from the pdf"""
+        with pdfplumber.open(pdf_path) as pdf:
+            first_page = pdf.pages[0]
+            text = first_page.extract_text()
+            for line in text.split("\n"):
+                if line.lower().startswith("appointment date:"):
+                    date_part = line.split(":", 1)[1].strip().split(",")[0].strip()
+                    year = datetime.now().year
+                    return datetime.strptime(f"{date_part} {year}", "%d %B %Y").date()
+        return None
 
-    def extract_appointments(self, data):
-        """Extract and structure appointment data."""
+
+    def _extract_appointments_from_pdf(self, pdf_path):
+        """Extracts appointment data from a PDF."""
         appointments = []
-        for item in data:
-            try:
-               appointments.append({
-                    "appointment_id": item.get("appointment_id", None),
-                    "patient_id": item.get("patient_id", None),
-                    "physician_id": item.get("physician_id", None),
-                    "appointment_time": datetime.strptime(item["date"] + " " + item["time"], "%Y-%m-%d %H:%M") if item.get("date", None) and item.get("time", None) else None,
-                    "reason": item.get("reason", None),
-                    "check_in_time": None,
-                    "priority_score": 0
-               })
-            except:
-                print(f"Error parsing item: {item}")
-                continue
+        date = self._extract_date_from_pdf(pdf_path)
+        with pdfplumber.open(pdf_path) as pdf:
+            for i, page in enumerate(pdf.pages):
+                table = page.extract_table()
+                if table:
+                    df = pd.DataFrame(table[1:], columns=table[0])
+                    for index, row in df.iterrows():
+                        sl = row.get('SL', None)
+                        if not sl or not str(sl).isdigit():
+                           print(f"Error skipping row with invalid SL {sl}, row: {row}")
+                           continue
+                        try:
+                            sl = int(sl)
+                            appointment_time_str = f"{date.strftime('%Y-%m-%d')} 00:00"
+                            appointment_time = datetime.strptime(appointment_time_str, "%Y-%m-%d %H:%M")
+
+                            age = row.get("Age", None)
+                            if age:
+                              try:
+                                  age = int(age)
+                              except:
+                                  age = None
+                            else:
+                                age = None
+
+                            if row.get("Patient Name", None) and row.get("Phone", None):
+                                 appointments.append({
+                                     "patient_name": row["Patient Name"],
+                                     "age": age,
+                                     "sex": row.get("Sex", None),
+                                     "phone": row["Phone"],
+                                     "type": row.get("Type", None),
+                                     "category": row.get("Category", None),
+                                     "appointment_time": appointment_time,
+                                     "check_in_time": None,
+                                     "priority_score": 0,
+                                     "sl": sl
+                                 })
+                        except Exception as e:
+                            print(f"Error extracting appointment: {e}, row: {row}")
         return appointments
 
-    def ingest_data(self, filename):
-        data = self.load_data_from_json(filename)
-        appointments = self.extract_appointments(data)
-        return appointments
-
-if __name__ == '__main__':
-    agent = DataIngestionAgent()
-    app_data = agent.ingest_data('data/appointments_2024-08-22.json')
-    print(app_data)
+    def ingest_data(self, pdf_path):
+        """Loads appointments from the pdf to the database"""
+        appointments = self._extract_appointments_from_pdf(pdf_path)
+        session = Session()
+        try:
+            for appt_data in appointments:
+                 appointment = Appointment(
+                    patient_name = appt_data.get("patient_name"),
+                    age = appt_data.get("age"),
+                    sex = appt_data.get("sex"),
+                    phone = appt_data.get("phone"),
+                    appointment_time = appt_data.get("appointment_time"),
+                    type = appt_data.get("type"),
+                    category = appt_data.get("category"),
+                    check_in_time = appt_data.get("check_in_time"),
+                    is_checked_in = False,
+                    priority_score = appt_data.get("priority_score"),
+                    is_completed = False,
+                    sl = appt_data.get("sl")
+                 )
+                 session.add(appointment)
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            print(f"Error inserting data: {e}")
+        finally:
+            session.close()

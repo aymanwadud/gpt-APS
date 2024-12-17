@@ -1,21 +1,29 @@
-# agents/real_time_monitoring_agent.py
 import datetime
+from utils.database import Appointment, Session
 
 class RealTimeMonitoringAgent:
-    def __init__(self):
-        self.checked_in = {}
+    def check_in(self, appointment_id):
+        session = Session()
+        try:
+            appointment = session.query(Appointment).filter(Appointment.id == appointment_id).first()
+            if appointment:
+               appointment.check_in_time = datetime.datetime.now()
+               appointment.is_checked_in = True
+               session.commit()
+               return appointment.check_in_time
+            return None
+        except Exception as e:
+           session.rollback()
+           print(f"Error during check in {e}")
+        finally:
+           session.close()
 
-    def check_in(self, appointment):
-        self.checked_in[appointment.get("appointment_id")] = datetime.datetime.now()
-        return self.checked_in[appointment.get("appointment_id")]
-
-    def get_check_in_time(self, appointment):
-        return self.checked_in.get(appointment.get("appointment_id"), None)
-
-if __name__ == '__main__':
-    agent = RealTimeMonitoringAgent()
-    check_in_time = agent.check_in({"appointment_id": "1"})
-    print(check_in_time)
-    time = agent.get_check_in_time({"appointment_id": "1"})
-    print(time)
-    
+    def get_check_in_time(self, appointment_id):
+        session = Session()
+        try:
+          appointment = session.query(Appointment).filter(Appointment.id == appointment_id).first()
+          if appointment:
+             return appointment.check_in_time
+          return None
+        finally:
+            session.close()

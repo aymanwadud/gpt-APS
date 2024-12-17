@@ -1,27 +1,34 @@
-# agents/priority_calculation_agent.py
 import datetime
+from utils.database import Appointment, Session
+
 class PriorityCalculationAgent:
-    def calculate_priority(self, features):
-        priority_score = 0.0
+    def calculate_priority(self, appointment_id):
+        session = Session()
+        try:
+            appointment = session.query(Appointment).filter(Appointment.id == appointment_id).first()
+            if appointment:
+                priority_score = 0.0
+                if appointment.is_checked_in and appointment.check_in_time:
+                   wait_time = (datetime.datetime.now() - appointment.check_in_time).total_seconds()
+                   priority_score += wait_time * 0.1
 
-        # Rule-based priority: More wait time means higher priority
-        if features.get("check_in_time"):
-           wait_time = (datetime.datetime.now() - features["check_in_time"]).total_seconds()
-           priority_score += wait_time * 0.1
+                if appointment.type == "Report":
+                  priority_score += 10
 
-        # Weighted factor: Checkup or report have medium priority
-        if "checkup" in features.get("reason", "").lower() or "report" in features.get("reason", "").lower():
-           priority_score += 10
+                return priority_score
+            return None
+        finally:
+            session.close()
 
-        # Emergency is higher priority
-        if "emergency" in features.get("reason", "").lower():
-            priority_score += 20
-
-        return priority_score
-
-
-if __name__ == '__main__':
-    agent = PriorityCalculationAgent()
-    features = {"reason": "Emergency", "check_in_time": datetime.datetime.now() - datetime.timedelta(seconds = 100)}
-    priority = agent.calculate_priority(features)
-    print(priority)
+    def update_priority_in_db(self, appointment_id):
+        session = Session()
+        try:
+            appointment = session.query(Appointment).filter(Appointment.id == appointment_id).first()
+            if appointment:
+               appointment.priority_score = self.calculate_priority(appointment_id)
+               session.commit()
+        except Exception as e:
+            session.rollback()
+            print(f"Error updating priority score {e}")
+        finally:
+           session.close()
