@@ -220,5 +220,5 @@ if st.session_state.queue:
             session.close()
 
 if name == "main":
-main()
+    main()
 
