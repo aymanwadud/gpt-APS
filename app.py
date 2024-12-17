@@ -110,23 +110,28 @@ def main():
                     """
                 ))
 
-          gb.configure_column("check_in_button",
-                              cellRenderer=JsCode("""
-                                function(params){
-                                        return '<button onclick="checkIn(this)" id="'+params.data.id+'">Check In</button>'
-                                }
-                              """),
-                              width = 100,
-                              )
+          gb.configure_column(
+              "check_in",
+              headerName="Check In",
+              cellRenderer=JsCode("""
+                  function(params) {
+                      return '<button id="check_in_' + params.data.id + '">Check In</button>';
+                 }
+             """),
+             width=120
+          )
 
-          gb.configure_column("done_button",
-                              cellRenderer=JsCode("""
-                                function(params){
-                                       return '<button onclick="done(this)" id="'+params.data.id+'">Done</button>'
-                                }
-                              """),
-                              width = 100,
-                            )
+          gb.configure_column(
+              "done",
+              headerName="Done",
+              cellRenderer=JsCode("""
+                  function(params) {
+                      return '<button id="done_' + params.data.id + '">Done</button>';
+                  }
+              """),
+              width=100
+          )
+
           go = gb.build()
           go["allow_unsafe_jscode"] = True
           go["suppressMoveWhenRowDragging"] = True
@@ -186,15 +191,17 @@ def main():
 
                                   )
 
-          # Handle button press event
-          if grid_response.get('data') is not None and not grid_response.get('data').empty:
-           selected_value = st.session_state.get("agGrid_key", None)
-           if selected_value:
-              if str(selected_value).endswith("_done"):
-                mark_appointment_done(int(selected_value.replace("_done", "")))
-              else:
-                check_in_patient(int(selected_value))
-              st.session_state["agGrid_key"] = None # Remove key from session state
+          # Handle row selection and button actions
+          selected_rows = grid_response["selected_rows"]
+          if selected_rows:
+              for row in selected_rows:
+                  patient_id = row["id"]
+                  st.info(f"Processing Patient ID: {patient_id}")
+        
+                  # Check-in and mark the appointment as done
+                  check_in_patient(patient_id)
+                  mark_appointment_done(patient_id)
+
           if grid_response.get('data_rows'):
             selected_rows = grid_response.get('data_rows', [])
             if selected_rows:
